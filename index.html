@@ -3,25 +3,176 @@
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Scan carte NFL</title>
+  <style>
+    body{font-family:system-ui;max-width:620px;margin:18px auto;padding:0 12px}
+    button{padding:12px 14px;font-size:16px}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:12px 0}
+    video, img{width:100%;max-width:300px;border:1px solid #333;border-radius:10px}
+    .hint{opacity:.75;font-size:13px;margin-top:10px}
+    .ok{color:#0a0}
+    .err{color:#a00}
+  </style>
 </head>
-
-<body style="font-family:system-ui;max-width:520px;margin:24px auto">
-
+<body>
   <h2>Scan carte NFL (recto / verso)</h2>
 
-  <form
-    action="https://n8n.srv1119117.hstgr.cloud/webhook-test/ingest-card"
-    method="post"
-    enctype="multipart/form-data"
-  >
-    <label>Recto</label><br>
-    <input type="file" name="front" accept="image/*" capture required><br><br>
+  <div class="row">
+    <button id="start">Ouvrir la caméra</button>
+    <button id="stop" disabled>Couper la caméra</button>
+  </div>
 
-    <label>Verso</label><br>
-    <input type="file" name="back" accept="image/*" capture required><br><br>
+  <div class="row">
+    <video id="video" playsinline autoplay muted></video>
+  </div>
 
-    <button style="font-size:16px;padding:12px">Envoyer</button>
-  </form>
+  <div class="row">
+    <button id="snapFront" disabled>Capturer Recto</button>
+    <button id="snapBack" disabled>Capturer Verso</button>
+    <button id="send" disabled>Envoyer</button>
+  </div>
 
+  <div class="row">
+    <div>
+      <div><b>Recto</b></div>
+      <img id="frontPreview" alt="Recto" />
+    </div>
+    <div>
+      <div><b>Verso</b></div>
+      <img id="backPreview" alt="Verso" />
+    </div>
+  </div>
+
+  <div id="status" class="hint"></div>
+
+  <script>
+    // 1) Mets ici ton webhook n8n
+    const WEBHOOK_URL = "https://n8n.srv1119117.hstgr.cloud/webhook-test/ingest-card";
+
+    let stream = null;
+    let frontBlob = null;
+    let backBlob = null;
+
+    const $ = (id) => document.getElementById(id);
+    const statusEl = $("status");
+
+    function setStatus(msg, cls="") {
+      statusEl.className = "hint " + cls;
+      statusEl.textContent = msg;
+    }
+
+    async function startCamera() {
+      try {
+        // Caméra arrière si possible
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
+        $("video").srcObject = stream;
+
+        $("stop").disabled = false;
+        $("snapFront").disabled = false;
+        $("snapBack").disabled = false;
+        setStatus("Caméra active. Capture recto puis verso.", "ok");
+      } catch (e) {
+        setStatus("Impossible d’ouvrir la caméra. Vérifie les permissions navigateur.", "err");
+        console.error(e);
+      }
+    }
+
+    function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      $("video").srcObject = null;
+
+      $("stop").disabled = true;
+      $("snapFront").disabled = true;
+      $("snapBack").disabled = true;
+      setStatus("Caméra coupée.", "");
+    }
+
+    function capture() {
+      const video = $("video");
+      if (!video.videoWidth) return null;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0);
+
+      return new Promise(resolve => {
+        canvas.toBlob(blob => resolve(blob), "image/jpeg", 0.9);
+      });
+    }
+
+    async function snapFront() {
+      const blob = await capture();
+      if (!blob) return;
+      frontBlob = blob;
+      $("frontPreview").src = URL.createObjectURL(blob);
+      setStatus("Recto capturé. Capture le verso.", "ok");
+      $("send").disabled = !(frontBlob && backBlob);
+    }
+
+    async function snapBack() {
+      const blob = await capture();
+      if (!blob) return;
+      backBlob = blob;
+      $("backPreview").src = URL.createObjectURL(blob);
+      setStatus("Verso capturé. Tu peux envoyer.", "ok");
+      $("send").disabled = !(frontBlob && backBlob);
+    }
+
+    async function send() {
+      if (!frontBlob || !backBlob) {
+        setStatus("Il faut recto + verso avant d’envoyer.", "err");
+        return;
+      }
+
+      try {
+        setStatus("Envoi en cours…", "");
+        const form = new FormData();
+
+        // IMPORTANT: noms des champs = front / back (comme ton flow n8n)
+        form.append("front", frontBlob, "front.jpg");
+        form.append("back", backBlob, "back.jpg");
+
+        // Option sécurité simple (tu peux l'ajouter et vérifier dans n8n)
+        // form.append("token", "MON_SECRET_ULTRA_LONG");
+
+        const res = await fetch(WEBHOOK_URL, { method: "POST", body: form });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+
+        const text = await res.text();
+        setStatus("Envoyé. Réponse serveur: " + text, "ok");
+
+        // Reset pour la prochaine carte
+        frontBlob = null; backBlob = null;
+        $("frontPreview").src = "";
+        $("backPreview").src = "";
+        $("send").disabled = true;
+
+      } catch (e) {
+        setStatus("Erreur d’envoi vers n8n. Vérifie l’URL webhook et CORS.", "err");
+        console.error(e);
+      }
+    }
+
+    $("start").addEventListener("click", startCamera);
+    $("stop").addEventListener("click", stopCamera);
+    $("snapFront").addEventListener("click", snapFront);
+    $("snapBack").addEventListener("click", snapBack);
+    $("send").addEventListener("click", send);
+
+    // Vérifs navigateur
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatus("Ton navigateur ne supporte pas l’accès caméra. Utilise Chrome Android.", "err");
+    } else {
+      setStatus("Clique “Ouvrir la caméra”.", "");
+    }
+  </script>
 </body>
 </html>
+
