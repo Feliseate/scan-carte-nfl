@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scan carte NFL</title>
+</head>
+
+<body style="font-family:system-ui;max-width:520px;margin:24px auto">
+
+  <h2>Scan carte NFL (recto / verso)</h2>
+
+  <form
+    action="https://n8n.srv1119117.hstgr.cloud/webhook-test/ingest-card"
+    method="post"
+    enctype="multipart/form-data"
+  >
+    <label>Recto</label><br>
+    <input type="file" name="front" accept="image/*" capture required><br><br>
+
+    <label>Verso</label><br>
+    <input type="file" name="back" accept="image/*" capture required><br><br>
+
+    <button style="font-size:16px;padding:12px">Envoyer</button>
+  </form>
+
+</body>
+</html>
