@@ -7,12 +7,12 @@
     :root{
       --bg:#0b0c10;
       --fg:#f3f4f6;
-      --muted: rgba(243,244,246,.75);
+      --muted: rgba(243,244,246,.72);
       --accent:#22c55e;
       --danger:#ef4444;
+      --card: rgba(17,24,39,.72);
       --border: rgba(255,255,255,.18);
     }
-
     *{box-sizing:border-box}
     body{
       margin:0;
@@ -21,22 +21,27 @@
       color: var(--fg);
       height: 100dvh;
       overflow:hidden;
+      touch-action: manipulation;
     }
 
     header{
       padding: 10px 14px env(safe-area-inset-top);
       display:flex;
-      gap:10px;
       align-items:center;
       justify-content:space-between;
-      background: linear-gradient(to bottom, rgba(0,0,0,.65), rgba(0,0,0,0));
+      background: linear-gradient(to bottom, rgba(0,0,0,.7), rgba(0,0,0,0));
       position: relative;
-      z-index: 5;
+      z-index: 10;
     }
     header h2{
       margin:0;
       font-size: 16px;
-      font-weight: 700;
+      font-weight: 800;
+      letter-spacing:.2px;
+    }
+    header .sub{
+      font-size:12px;
+      color:var(--muted);
     }
 
     .app{
@@ -52,7 +57,6 @@
       overflow:hidden;
       background:#000;
     }
-
     video{
       position:absolute;
       inset:0;
@@ -62,40 +66,38 @@
       transform: translateZ(0);
     }
 
-    /* Cadre overlay */
+    /* Cadre */
     .frame{
       position:absolute;
       left:50%;
       top:50%;
       transform: translate(-50%,-50%);
-      border: 2px solid rgba(255,255,255,.85);
-      border-radius: 14px;
-      box-shadow: 0 0 0 9999px rgba(0,0,0,.35);
+      border: 2px solid rgba(255,255,255,.9);
+      border-radius: 16px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,.38);
       pointer-events:none;
     }
     .frame:after{
       content:"";
       position:absolute;
-      inset:10px;
+      inset:12px;
       border:1px dashed rgba(255,255,255,.35);
-      border-radius: 10px;
+      border-radius: 12px;
     }
-
-    /* Mode Carte (raw) : ratio trading card ≈ 5:7 */
     .frame.mode-card{
-      width: min(88vw, 440px);
+      width: min(88vw, 460px);
       aspect-ratio: 5 / 7;
     }
-
-    /* Mode Slab PSA (complet) : plus haut */
     .frame.mode-slab{
-      width: min(78vw, 380px);
+      width: min(78vw, 400px);
       aspect-ratio: 10 / 16;
     }
 
+    /* Zone controls */
     .controls{
+      position: relative;
       flex: 0 0 auto;
-      padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+      padding: 10px 12px calc(108px + env(safe-area-inset-bottom)); /* laisse place au sticky CTA */
       background: rgba(0,0,0,.65);
       backdrop-filter: blur(10px);
       border-top: 1px solid var(--border);
@@ -104,48 +106,76 @@
     .row{
       display:flex;
       gap:12px;
-      flex-wrap:nowrap;
       align-items:stretch;
-      justify-content:space-between;
       margin: 10px 0;
     }
-    @media (max-width: 380px){
-      .row{ flex-wrap:wrap; }
-    }
 
-    /* Boutons: taille pouce */
+    /* Boutons giga (pouce) */
     button{
       appearance:none;
       border: 1px solid var(--border);
-      background: rgba(17,24,39,.85);
+      background: rgba(17,24,39,.88);
       color: var(--fg);
-      padding: 16px 16px;
-      border-radius: 14px;
-      font-size: 16px;
-      font-weight: 700;
-      flex: 1 1 auto;
-      min-width: 140px;
-      min-height: 56px;
+      padding: 18px 18px;
+      border-radius: 18px;
+      font-size: 19px;
+      font-weight: 800;
       letter-spacing:.2px;
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 78px;
+      user-select:none;
     }
-    button.primary{ background: rgba(34,197,94,.2); border-color: rgba(34,197,94,.5); }
-    button.danger{ background: rgba(239,68,68,.18); border-color: rgba(239,68,68,.5); }
+    button.primary{
+      background: rgba(34,197,94,.20);
+      border-color: rgba(34,197,94,.55);
+    }
+    button.danger{
+      background: rgba(239,68,68,.18);
+      border-color: rgba(239,68,68,.55);
+    }
     button:disabled{ opacity:.45; }
 
+    /* Toggle Mode (segmented) */
+    .seg{
+      display:flex;
+      width:100%;
+      background: rgba(17,24,39,.45);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow:hidden;
+    }
+    .seg button{
+      border:none;
+      border-radius:0;
+      min-height: 64px;
+      font-size: 17px;
+      padding: 16px 12px;
+      background: transparent;
+    }
+    .seg button.active{
+      background: rgba(34,197,94,.22);
+    }
+    .seg button:not(.active){
+      opacity:.85;
+    }
+
+    /* Zoom slider */
     .slider{
       width:100%;
       display:flex;
       gap:12px;
       align-items:center;
-      background: rgba(17,24,39,.55);
+      background: rgba(17,24,39,.45);
       border: 1px solid var(--border);
-      padding: 12px 12px;
-      border-radius: 14px;
+      padding: 14px 14px;
+      border-radius: 18px;
     }
     .slider label{
       font-size: 14px;
       color: var(--muted);
-      min-width: 54px;
+      min-width: 46px;
+      font-weight:700;
     }
     .slider input[type="range"]{ width:100%; }
     .slider .val{
@@ -153,42 +183,39 @@
       font-size: 14px;
       min-width: 56px;
       text-align:right;
+      color: var(--fg);
+      font-weight:700;
     }
 
-    button.cta{
-      min-height: 62px;
-      font-size: 17px;
-    }
-
+    /* Previews compact */
     .previews{
       display:flex;
-      gap:12px;
-      align-items:center;
-      justify-content:space-between;
+      gap:10px;
+      margin-top: 8px;
     }
     .thumb{
       flex: 1 1 0;
-      background: rgba(17,24,39,.55);
+      background: rgba(17,24,39,.45);
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 16px;
       padding: 8px;
       display:flex;
       gap:10px;
       align-items:center;
-      min-height: 64px;
+      min-height: 56px;
     }
     .thumb img{
-      width: 52px;
-      height: 52px;
+      width: 44px;
+      height: 44px;
       object-fit: cover;
       border-radius: 12px;
-      border:1px solid rgba(255,255,255,.2);
+      border:1px solid rgba(255,255,255,.18);
       background:#0b0c10;
     }
-    .thumb .meta{ display:flex; flex-direction:column; gap:4px; min-width:0; }
-    .thumb .meta b{ font-size: 13px; }
+    .thumb .meta{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+    .thumb .meta b{ font-size: 12px; }
     .thumb .meta span{
-      font-size: 12px;
+      font-size: 11px;
       color: var(--muted);
       white-space:nowrap;
       overflow:hidden;
@@ -196,15 +223,39 @@
     }
 
     #status{
+      margin-top: 8px;
       font-size: 13px;
       color: var(--muted);
-      margin-top: 6px;
       min-height: 18px;
     }
     .ok{ color: var(--accent) !important; }
     .err{ color: var(--danger) !important; }
 
     .hidden{ display:none !important; }
+
+    /* Sticky bottom CTA */
+    .stickyBar{
+      position: fixed;
+      left:0; right:0;
+      bottom:0;
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+      background: rgba(0,0,0,.78);
+      border-top: 1px solid var(--border);
+      backdrop-filter: blur(10px);
+      z-index: 20;
+    }
+    .stickyBar .row{ margin:0; }
+    #send{
+      min-height: 92px;
+      font-size: 22px;
+      border-radius: 20px;
+    }
+
+    /* Très petits écrans : garde lisible */
+    @media (max-width: 360px){
+      button{ font-size: 18px; min-height: 74px; }
+      #send{ min-height: 86px; font-size: 21px; }
+    }
   </style>
 </head>
 
@@ -212,7 +263,7 @@
 <div class="app">
   <header>
     <h2>Scan carte NFL</h2>
-    <div style="font-size:12px;color:var(--muted)">Recto / Verso</div>
+    <div class="sub">Recto / Verso</div>
   </header>
 
   <div class="viewer" id="viewer">
@@ -226,17 +277,21 @@
       <button id="stop" class="danger" disabled>Couper</button>
     </div>
 
-    <!-- Toggle mode en 2 boutons -->
-    <div class="row" id="modeRow">
-      <button id="modeCard" class="primary" disabled>Carte</button>
-      <button id="modeSlab" disabled>Slab PSA</button>
+    <!-- Toggle Mode -->
+    <div class="row">
+      <div class="seg" role="group" aria-label="Mode capture">
+        <button id="modeCard" class="active" disabled>Carte</button>
+        <button id="modeSlab" disabled>Slab PSA</button>
+      </div>
     </div>
 
+    <!-- Torch + Reset Zoom -->
     <div class="row">
       <button id="torch" disabled class="hidden">Flash: OFF</button>
       <button id="resetZoom" disabled class="hidden">Zoom: Reset</button>
     </div>
 
+    <!-- Zoom slider -->
     <div class="row">
       <div class="slider hidden" id="zoomWrap">
         <label for="zoom">Zoom</label>
@@ -245,15 +300,9 @@
       </div>
     </div>
 
-    <!-- Captures sur une ligne -->
     <div class="row">
       <button id="snapFront" disabled>Capturer Recto</button>
       <button id="snapBack" disabled>Capturer Verso</button>
-    </div>
-
-    <!-- CTA Envoyer full width -->
-    <div class="row">
-      <button id="send" disabled class="primary cta" style="width:100%">Envoyer</button>
     </div>
 
     <div class="previews">
@@ -274,6 +323,13 @@
     </div>
 
     <div id="status"></div>
+  </div>
+
+  <!-- Sticky send bar -->
+  <div class="stickyBar">
+    <div class="row">
+      <button id="send" disabled class="primary">Envoyer</button>
+    </div>
   </div>
 </div>
 
@@ -304,32 +360,28 @@
     statusEl.textContent = msg;
   }
 
-  function haptic(){
-    if (navigator.vibrate) navigator.vibrate(18);
-  }
+  function haptic(ms=18){ if (navigator.vibrate) navigator.vibrate(ms); }
 
   function canUseCamera() {
     return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   }
 
-  function currentMode() {
-    return MODES[modeIndex];
-  }
+  function currentMode(){ return MODES[modeIndex]; }
 
   function applyMode() {
     const frame = $("frame");
     MODES.forEach(m => frame.classList.remove(m.className));
     frame.classList.add(currentMode().className);
-    setStatus("Mode cadrage: " + currentMode().label + " (crop = zone du cadre).", "ok");
+
+    $("modeCard").classList.toggle("active", currentMode().key === "card");
+    $("modeSlab").classList.toggle("active", currentMode().key === "slab");
+
+    setStatus("Mode: " + currentMode().label + " (crop = cadre).", "ok");
   }
 
   function setMode(key){
     const idx = MODES.findIndex(m => m.key === key);
-    modeIndex = (idx >= 0) ? idx : 0;
-
-    $("modeCard").classList.toggle("primary", key === "card");
-    $("modeSlab").classList.toggle("primary", key === "slab");
-
+    modeIndex = idx >= 0 ? idx : 0;
     applyMode();
   }
 
@@ -364,7 +416,8 @@
       setupZoomUI();
       setupTorchUI();
 
-      setStatus("Caméra active. Place carte/slab dans le cadre puis capture recto/verso.", "ok");
+      setStatus("Caméra active. Cadre la carte/slab puis capture recto & verso.", "ok");
+      haptic(12);
     } catch (e) {
       console.error(e);
       setStatus("Impossible d’ouvrir la caméra. Vérifie les permissions navigateur.", "err");
@@ -372,7 +425,7 @@
   }
 
   async function stopCamera() {
-    // Torch OFF avant de couper
+    // Torch off proprement
     try {
       if (track && caps && typeof caps.torch !== "undefined" && torchOn) {
         torchOn = false;
@@ -392,10 +445,12 @@
     $("send").disabled = true;
 
     enableModeButtons(false);
+
     hideZoomUI();
     hideTorchUI();
 
     setStatus("Caméra coupée.");
+    haptic(10);
   }
 
   function hideZoomUI(){
@@ -403,7 +458,6 @@
     $("resetZoom").classList.add("hidden");
     $("resetZoom").disabled = true;
   }
-
   function hideTorchUI(){
     $("torch").classList.add("hidden");
     $("torch").disabled = true;
@@ -442,6 +496,7 @@
       zoom.value = String(min);
       $("zoomVal").textContent = `${Number(zoom.value).toFixed(1)}×`;
       await applyAdvancedConstraints({ zoom: Number(zoom.value) });
+      haptic(8);
     };
   }
 
@@ -459,6 +514,7 @@
       torchOn = !torchOn;
       torchBtn.textContent = torchOn ? "Flash: ON" : "Flash: OFF";
       await applyAdvancedConstraints({ torch: torchOn });
+      haptic(10);
     };
   }
 
@@ -471,7 +527,7 @@
     }
   }
 
-  // Capture crop basé sur le cadre (frame)
+  // Capture crop = zone cadre (meilleur pour OCR/IA)
   async function captureCroppedBlob() {
     const video = $("video");
     const frame = $("frame");
@@ -488,7 +544,7 @@
     const containerW = viewerRect.width;
     const containerH = viewerRect.height;
 
-    // object-fit: cover => scale = max(container/video)
+    // object-fit: cover
     const scale = Math.max(containerW / vW, containerH / vH);
     const dispW = vW * scale;
     const dispH = vH * scale;
@@ -496,13 +552,11 @@
     const offsetX = (containerW - dispW) / 2;
     const offsetY = (containerH - dispH) / 2;
 
-    // cadre dans l'espace container
     const fx = frameRect.left - viewerRect.left;
     const fy = frameRect.top  - viewerRect.top;
     const fW = frameRect.width;
     const fH = frameRect.height;
 
-    // conversion vers pixels source
     let sx = (fx - offsetX) / scale;
     let sy = (fy - offsetY) / scale;
     let sW = fW / scale;
@@ -514,7 +568,6 @@
     sW = Math.max(1, Math.min(vW - sx, sW));
     sH = Math.max(1, Math.min(vH - sy, sH));
 
-    // sortie
     const outMax = 1400;
     const ratio = sW / sH;
     let outW, outH;
@@ -524,7 +577,6 @@
     const canvas = document.createElement("canvas");
     canvas.width = outW;
     canvas.height = outH;
-
     const ctx = canvas.getContext("2d", { alpha:false });
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -535,28 +587,30 @@
     });
   }
 
+  function updateSendState(){
+    $("send").disabled = !(frontBlob && backBlob);
+  }
+
   async function snapFront() {
     const blob = await captureCroppedBlob();
     if (!blob) { setStatus("Capture impossible. Caméra pas prête.", "err"); return; }
-
     frontBlob = blob;
     $("frontPreview").src = URL.createObjectURL(blob);
     $("frontInfo").textContent = `OK (${Math.round(blob.size/1024)} KB)`;
     setStatus("Recto capturé. Capture le verso.", "ok");
-    $("send").disabled = !(frontBlob && backBlob);
-    haptic();
+    updateSendState();
+    haptic(18);
   }
 
   async function snapBack() {
     const blob = await captureCroppedBlob();
     if (!blob) { setStatus("Capture impossible. Caméra pas prête.", "err"); return; }
-
     backBlob = blob;
     $("backPreview").src = URL.createObjectURL(blob);
     $("backInfo").textContent = `OK (${Math.round(blob.size/1024)} KB)`;
     setStatus("Verso capturé. Tu peux envoyer.", "ok");
-    $("send").disabled = !(frontBlob && backBlob);
-    haptic();
+    updateSendState();
+    haptic(18);
   }
 
   async function send() {
@@ -569,12 +623,11 @@
       setStatus("Envoi en cours…");
       const form = new FormData();
 
-      // Champs attendus par n8n
       form.append("front", frontBlob, "front.jpg");
       form.append("back", backBlob, "back.jpg");
 
-      // Info utile côté n8n
-      form.append("capture_mode", currentMode().key); // "card" | "slab"
+      // utile côté n8n
+      form.append("capture_mode", currentMode().key); // card | slab
 
       const res = await fetch(WEBHOOK_URL, { method: "POST", body: form });
       if (!res.ok) throw new Error("HTTP " + res.status);
@@ -586,31 +639,31 @@
       frontBlob = null; backBlob = null;
       $("frontPreview").src = ""; $("backPreview").src = "";
       $("frontInfo").textContent = "—"; $("backInfo").textContent = "—";
-      $("send").disabled = true;
-      haptic();
+      updateSendState();
+      haptic(22);
 
     } catch (e) {
       console.error(e);
       setStatus("Erreur d’envoi vers n8n. Vérifie l’URL webhook / CORS.", "err");
+      haptic(30);
     }
   }
 
   // Events
   $("start").addEventListener("click", startCamera);
   $("stop").addEventListener("click", stopCamera);
-
-  $("modeCard").addEventListener("click", () => setMode("card"));
-  $("modeSlab").addEventListener("click", () => setMode("slab"));
-
   $("snapFront").addEventListener("click", snapFront);
   $("snapBack").addEventListener("click", snapBack);
   $("send").addEventListener("click", send);
+
+  $("modeCard").addEventListener("click", () => setMode("card"));
+  $("modeSlab").addEventListener("click", () => setMode("slab"));
 
   // Init
   if (!canUseCamera()) {
     setStatus("Ton navigateur ne supporte pas l’accès caméra. Essaie Chrome sur Android.", "err");
   } else {
-    setStatus("Clique “Ouvrir la caméra”, puis choisis le mode (Carte / Slab PSA).");
+    setStatus("Clique “Ouvrir la caméra”. Choisis Carte ou Slab PSA.");
   }
 </script>
 </body>
