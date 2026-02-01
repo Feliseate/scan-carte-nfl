@@ -1,321 +1,547 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Scan carte NFL</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Scan carte NFL</title>
+  <style>
+    :root{
+      --bg:#0b0c10;
+      --fg:#f3f4f6;
+      --muted: rgba(243,244,246,.72);
+      --accent:#22c55e;
+      --danger:#ef4444;
+      --border: rgba(255,255,255,.18);
+      --panel: rgba(0,0,0,.70);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:var(--bg);
+      color:var(--fg);
+      height:100dvh;
+      overflow:hidden;
+      touch-action: manipulation;
+    }
+    .app{
+      height:100dvh;
+      display:flex;
+      flex-direction:column;
+    }
+    header{
+      padding: 10px 14px env(safe-area-inset-top);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      background: linear-gradient(to bottom, rgba(0,0,0,.75), rgba(0,0,0,0));
+      z-index:10;
+    }
+    header h2{margin:0;font-size:16px;font-weight:900;letter-spacing:.2px}
+    header .sub{font-size:12px;color:var(--muted)}
 
-<style>
-:root{
-  --bg:#0b0c10;
-  --fg:#f3f4f6;
-  --muted: rgba(243,244,246,.72);
-  --accent:#22c55e;
-  --danger:#ef4444;
-  --border: rgba(255,255,255,.18);
-}
-*{box-sizing:border-box}
+    /* ===== Viewer ===== */
+    .viewer{
+      position:relative;
+      flex:1 1 auto;
+      background:#000;
+      overflow:hidden;
+    }
+    video{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      transform: translateZ(0);
+    }
 
-body{
-  margin:0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  background: var(--bg);
-  color: var(--fg);
-  height:100dvh;
-  overflow:hidden;
-  touch-action: manipulation;
-}
+    /* ===== Frame ===== */
+    .frame{
+      position:absolute;
+      left:50%;
+      top:54%;
+      transform:translate(-50%,-50%);
+      border:2px solid rgba(255,255,255,.90);
+      border-radius: 14px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,.40);
+      pointer-events:none;
+    }
+    .frame:after{
+      content:"";
+      position:absolute;
+      inset:10px;
+      border:1px dashed rgba(255,255,255,.30);
+      border-radius: 10px;
+    }
 
-/* ===== Header ===== */
-header{
-  padding: 10px 14px env(safe-area-inset-top);
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  background: linear-gradient(to bottom, rgba(0,0,0,.7), rgba(0,0,0,0));
-  z-index:10;
-}
-header h2{margin:0;font-size:16px;font-weight:800}
-header .sub{font-size:12px;color:var(--muted)}
+    /* RAW card */
+    .frame.mode-card{
+      width:min(82vw, 460px);
+      aspect-ratio: 5 / 7;
+    }
 
-.app{
-  height:100dvh;
-  display:flex;
-  flex-direction:column;
-}
+    /* GRADED slab */
+    .frame.mode-slab{
+      width:min(74vw, 420px);
+      aspect-ratio: 10 / 16;
+    }
 
-/* ===== Viewer ===== */
-.viewer{
-  position:relative;
-  flex:1 1 auto;
-  min-height:55dvh;
-  background:#000;
-  overflow:hidden;
-}
-video{
-  position:absolute;
-  inset:0;
-  width:100%;
-  height:100%;
-  object-fit:cover;
-}
+    /* Un repère “zone haut” (utile pour label PSA / bandeau haut) */
+    .frame .topGuide{
+      position:absolute;
+      left:0; right:0;
+      top:18%;
+      border-top: 2px solid rgba(255,255,255,.35);
+    }
 
-/* ===== Frame ===== */
-.frame{
-  position:absolute;
-  left:50%;
-  top:50%;
-  transform:translate(-50%,-50%);
-  border:2px solid rgba(255,255,255,.9);
-  border-radius:16px;
-  box-shadow:0 0 0 9999px rgba(0,0,0,.38);
-  pointer-events:none;
-}
-.frame:after{
-  content:"";
-  position:absolute;
-  inset:12px;
-  border:1px dashed rgba(255,255,255,.35);
-  border-radius:12px;
-}
-.frame.mode-card{width:min(88vw,460px);aspect-ratio:5/7}
-.frame.mode-slab{width:min(78vw,400px);aspect-ratio:10/16}
+    /* ===== Overlay text like "FRONT OF CARD" ===== */
+    .stepTitle{
+      position:absolute;
+      left:50%;
+      top: 10px;
+      transform:translateX(-50%);
+      z-index:12;
+      background: rgba(0,0,0,.55);
+      border:1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight:900;
+      letter-spacing:.8px;
+      text-transform: uppercase;
+      font-size: 14px;
+      backdrop-filter: blur(8px);
+    }
 
-/* ===== Vertical Zoom ===== */
-.zoomSide{
-  position:absolute;
-  right:10px;
-  top:50%;
-  transform:translateY(-50%);
-  z-index:15;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:10px;
-  background:rgba(0,0,0,.35);
-  border:1px solid var(--border);
-  border-radius:16px;
-  padding:12px 10px;
-  backdrop-filter:blur(8px);
-}
-.zoomSide .zval{
-  font-size:12px;
-  font-weight:800;
-}
-.zoomSide input[type="range"]{
-  width:180px;
-  transform:rotate(-90deg);
-}
+    /* ===== Mode toggle RAW/GRADED like your example ===== */
+    .modePill{
+      position:absolute;
+      right: 14px;
+      bottom: 110px;
+      z-index:12;
+      background: rgba(0,0,0,.55);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-weight:900;
+      font-size: 14px;
+      letter-spacing:.4px;
+      backdrop-filter: blur(8px);
+      user-select:none;
+    }
+    .modePill.active{
+      background: rgba(34,197,94,.20);
+      border-color: rgba(34,197,94,.55);
+    }
 
-/* ===== Controls ===== */
-.controls{
-  background:rgba(0,0,0,.65);
-  backdrop-filter:blur(10px);
-  border-top:1px solid var(--border);
-  padding:12px 12px calc(108px + env(safe-area-inset-bottom));
-  overflow-y:auto;
-}
-@media (max-height:720px){
-  .controls{max-height:42dvh}
-}
+    /* ===== Capture button ===== */
+    .shutter{
+      position:absolute;
+      left:50%;
+      bottom: 24px;
+      transform:translateX(-50%);
+      z-index:12;
+      width:84px;
+      height:84px;
+      border-radius:999px;
+      border:4px solid rgba(255,255,255,.95);
+      background: rgba(255,255,255,.10);
+      box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    }
+    .shutter:active{ transform: translateX(-50%) scale(.98); }
 
-/* ===== Rows ===== */
-.row{display:flex;gap:12px;margin:10px 0}
+    /* ===== Zoom vertical (only if supported) ===== */
+    .zoomSide{
+      position:absolute;
+      right:10px;
+      top:50%;
+      transform:translateY(-50%);
+      z-index:15;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:10px;
+      background:rgba(0,0,0,.30);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:10px 8px;
+      backdrop-filter: blur(8px);
+    }
+    .zoomSide .zval{
+      font-size:12px;
+      font-weight:900;
+      opacity:.95;
+    }
+    .zoomSide input[type="range"]{
+      width: 150px;
+      transform: rotate(-90deg);
+    }
 
-/* ===== Buttons ===== */
-button{
-  appearance:none;
-  border:1px solid var(--border);
-  background:rgba(17,24,39,.88);
-  color:var(--fg);
-  padding:18px;
-  border-radius:18px;
-  font-size:19px;
-  font-weight:800;
-  min-height:78px;
-  flex:1;
-}
-button.primary{
-  background:rgba(34,197,94,.20);
-  border-color:rgba(34,197,94,.55);
-}
-button.danger{
-  background:rgba(239,68,68,.18);
-  border-color:rgba(239,68,68,.55);
-}
-button:disabled{opacity:.45}
+    /* ===== Bottom review sheet ===== */
+    .review{
+      position: fixed;
+      left:0; right:0;
+      bottom:0;
+      z-index:30;
+      background: rgba(0,0,0,.82);
+      border-top:1px solid var(--border);
+      backdrop-filter: blur(10px);
+      padding: 12px 12px calc(14px + env(safe-area-inset-bottom));
+      transform: translateY(105%);
+      transition: transform .18s ease;
+    }
+    .review.open{ transform: translateY(0); }
 
-/* ===== Segmented ===== */
-.seg{
-  display:flex;
-  width:100%;
-  background:rgba(17,24,39,.45);
-  border:1px solid var(--border);
-  border-radius:18px;
-  overflow:hidden;
-}
-.seg button{
-  border:none;
-  background:none;
-  min-height:64px;
-  font-size:17px;
-}
-.seg button.active{
-  background:rgba(34,197,94,.22);
-}
+    .review h3{
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      letter-spacing:.4px;
+      text-transform: uppercase;
+      opacity:.9;
+    }
 
-/* ===== Previews ===== */
-.previews{display:flex;gap:10px}
-.thumb{
-  flex:1;
-  background:rgba(17,24,39,.45);
-  border:1px solid var(--border);
-  border-radius:16px;
-  padding:8px;
-  display:flex;
-  gap:10px;
-  align-items:center;
-}
-.thumb img{
-  width:44px;height:44px;border-radius:12px;object-fit:cover;
-}
-.thumb b{font-size:12px}
-.thumb span{font-size:11px;color:var(--muted)}
+    .grid{
+      display:flex;
+      gap:10px;
+    }
+    .card{
+      flex:1;
+      background: rgba(17,24,39,.55);
+      border:1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px;
+      min-width:0;
+    }
+    .card b{ font-size: 12px; display:block; margin-bottom:8px; opacity:.95 }
+    .card img{
+      width:100%;
+      aspect-ratio: 5/7;
+      object-fit: cover;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,.12);
+      background:#000;
+    }
 
-#status{font-size:13px;color:var(--muted);margin-top:8px}
+    .actions{
+      display:flex;
+      gap:10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    button{
+      appearance:none;
+      border: 1px solid var(--border);
+      background: rgba(17,24,39,.88);
+      color: var(--fg);
+      padding: 16px 16px;
+      border-radius: 16px;
+      font-size: 16px;
+      font-weight: 900;
+      min-height: 56px;
+      flex:1;
+    }
+    button.primary{
+      background: rgba(34,197,94,.20);
+      border-color: rgba(34,197,94,.55);
+    }
+    button.danger{
+      background: rgba(239,68,68,.18);
+      border-color: rgba(239,68,68,.55);
+    }
+    button:disabled{ opacity:.45; }
 
-/* ===== Sticky Send ===== */
-.stickyBar{
-  position:fixed;
-  left:0;right:0;bottom:0;
-  padding:10px 12px calc(10px + env(safe-area-inset-bottom));
-  background:rgba(0,0,0,.78);
-  border-top:1px solid var(--border);
-}
-#send{
-  min-height:92px;
-  font-size:22px;
-}
-</style>
+    #status{
+      position:absolute;
+      left:12px;
+      bottom: 120px;
+      z-index:12;
+      background: rgba(0,0,0,.35);
+      border:1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      backdrop-filter: blur(8px);
+      max-width: 70vw;
+    }
+
+    .hidden{ display:none !important; }
+  </style>
 </head>
 
 <body>
 <div class="app">
+  <header>
+    <h2>Scan carte NFL</h2>
+    <div class="sub">Recto / Verso</div>
+  </header>
 
-<header>
-  <h2>Scan carte NFL</h2>
-  <div class="sub">Recto / Verso</div>
-</header>
+  <div class="viewer" id="viewer">
+    <video id="video" autoplay muted playsinline></video>
 
-<div class="viewer" id="viewer">
-  <video id="video" autoplay muted playsinline></video>
-  <div class="frame mode-card" id="frame"></div>
+    <div class="stepTitle" id="stepTitle">FRONT OF CARD</div>
 
-  <!-- Zoom vertical -->
-  <div class="zoomSide hidden" id="zoomSide">
-    <div class="zval" id="zoomVal">1.0×</div>
-    <input id="zoomRange" type="range" min="1" max="1" step="0.1" value="1">
+    <div class="frame mode-card" id="frame" aria-hidden="true">
+      <div class="topGuide"></div>
+    </div>
+
+    <div class="zoomSide hidden" id="zoomSide">
+      <div class="zval" id="zoomVal">1.0×</div>
+      <input id="zoomRange" type="range" min="1" max="1" step="0.1" value="1">
+    </div>
+
+    <div id="status">Ouvre la caméra, puis prends Recto → Verso.</div>
+
+    <div class="modePill" id="modePill">RAW</div>
+
+    <button class="shutter" id="shutter" title="Capturer"></button>
   </div>
 </div>
 
-<div class="controls">
-  <div class="row">
-    <button id="start" class="primary">Ouvrir la caméra</button>
-    <button id="stop" class="danger" disabled>Couper</button>
-  </div>
+<!-- Review panel -->
+<div class="review" id="review">
+  <h3>Vérification avant envoi</h3>
 
-  <div class="row">
-    <div class="seg">
-      <button id="modeCard" class="active" disabled>Carte</button>
-      <button id="modeSlab" disabled>Slab PSA</button>
+  <div class="grid">
+    <div class="card">
+      <b>Recto</b>
+      <img id="frontPreview" alt="Recto">
+    </div>
+    <div class="card">
+      <b>Verso</b>
+      <img id="backPreview" alt="Verso">
     </div>
   </div>
 
-  <div class="row">
-    <button id="snapFront" disabled>Capturer Recto</button>
-    <button id="snapBack" disabled>Capturer Verso</button>
+  <div class="actions">
+    <button id="retakeFront">Reprendre recto</button>
+    <button id="retakeBack">Reprendre verso</button>
   </div>
 
-  <div class="previews">
-    <div class="thumb"><img id="frontPreview"><div><b>Recto</b><span id="frontInfo">—</span></div></div>
-    <div class="thumb"><img id="backPreview"><div><b>Verso</b><span id="backInfo">—</span></div></div>
+  <div class="actions">
+    <button id="send" class="primary">Envoyer</button>
+    <button id="closeReview" class="danger">Annuler</button>
   </div>
-
-  <div id="status"></div>
-</div>
-
-<div class="stickyBar">
-  <button id="send" class="primary" disabled>Envoyer</button>
 </div>
 
 <script>
-const WEBHOOK_URL = "https://n8n.srv1119117.hstgr.cloud/webhook-test/scan-carte-nfl";
+  const WEBHOOK_URL = "https://n8n.srv1119117.hstgr.cloud/webhook-test/scan-carte-nfl";
 
-let stream, track, caps;
-let frontBlob=null, backBlob=null;
-let mode="card";
+  let stream=null, track=null, caps=null;
+  let frontBlob=null, backBlob=null;
+  let step="front"; // front | back
+  let captureMode="card"; // card | slab
 
-const $=id=>document.getElementById(id);
+  const $ = (id)=>document.getElementById(id);
 
-function setMode(m){
-  mode=m;
-  $("frame").className="frame "+(m==="slab"?"mode-slab":"mode-card");
-  $("modeCard").classList.toggle("active",m==="card");
-  $("modeSlab").classList.toggle("active",m==="slab");
-}
+  function haptic(ms=16){ if (navigator.vibrate) navigator.vibrate(ms); }
 
-async function startCamera(){
-  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
-  $("video").srcObject=stream;
-  track=stream.getVideoTracks()[0];
-  caps=track.getCapabilities?.();
-
-  $("stop").disabled=false;
-  $("snapFront").disabled=false;
-  $("snapBack").disabled=false;
-  $("modeCard").disabled=false;
-  $("modeSlab").disabled=false;
-
-  if(caps?.zoom){
-    const z=$("zoomRange");
-    z.min=caps.zoom.min;
-    z.max=caps.zoom.max;
-    z.step=caps.zoom.step||0.1;
-    z.value=caps.zoom.min;
-    $("zoomVal").textContent=z.value+"×";
-    $("zoomSide").classList.remove("hidden");
-    z.oninput=async()=>{
-      $("zoomVal").textContent=z.value+"×";
-      await track.applyConstraints({advanced:[{zoom:Number(z.value)}]});
-    };
+  function setStatus(msg){
+    $("status").textContent = msg;
   }
-}
 
-function stopCamera(){
-  stream?.getTracks().forEach(t=>t.stop());
-  $("stop").disabled=true;
-}
+  function setStep(s){
+    step = s;
+    $("stepTitle").textContent = (step === "front") ? "FRONT OF CARD" : "BACK OF CARD";
+    setStatus(step === "front" ? "Cadre le RECTO puis appuie sur capture." : "Cadre le VERSO puis appuie sur capture.");
+  }
 
-async function capture(){
-  const v=$("video");
-  const c=document.createElement("canvas");
-  c.width=v.videoWidth;c.height=v.videoHeight;
-  c.getContext("2d").drawImage(v,0,0);
-  return new Promise(r=>c.toBlob(b=>r(b),"image/jpeg",0.9));
-}
+  function setCaptureMode(mode){
+    captureMode = mode; // "card" or "slab"
+    $("frame").className = "frame " + (mode === "slab" ? "mode-slab" : "mode-card");
+    $("modePill").textContent = (mode === "slab") ? "GRADED" : "RAW";
+    $("modePill").classList.toggle("active", mode === "slab");
+  }
 
-$("start").onclick=startCamera;
-$("stop").onclick=stopCamera;
-$("modeCard").onclick=()=>setMode("card");
-$("modeSlab").onclick=()=>setMode("slab");
-$("snapFront").onclick=async()=>{frontBlob=await capture();$("frontPreview").src=URL.createObjectURL(frontBlob);};
-$("snapBack").onclick=async()=>{backBlob=await capture();$("backPreview").src=URL.createObjectURL(backBlob);};
-$("send").onclick=async()=>{
-  const f=new FormData();
-  f.append("front",frontBlob);
-  f.append("back",backBlob);
-  f.append("capture_mode",mode);
-  await fetch(WEBHOOK_URL,{method:"POST",body:f});
-};
+  async function startCamera(){
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{
+        facingMode:{ideal:"environment"},
+        width:{ideal:1920},
+        height:{ideal:1080}
+      },
+      audio:false
+    });
+    $("video").srcObject = stream;
+    track = stream.getVideoTracks()[0];
+    caps = track.getCapabilities ? track.getCapabilities() : null;
+
+    // Setup zoom vertical if supported
+    if (caps && typeof caps.zoom !== "undefined"){
+      const z = $("zoomRange");
+      z.min = String(caps.zoom.min ?? 1);
+      z.max = String(caps.zoom.max ?? 1);
+      z.step = String(caps.zoom.step ?? 0.1);
+      z.value = String(caps.zoom.min ?? 1);
+      $("zoomVal").textContent = `${Number(z.value).toFixed(1)}×`;
+      $("zoomSide").classList.remove("hidden");
+
+      z.oninput = async () => {
+        $("zoomVal").textContent = `${Number(z.value).toFixed(1)}×`;
+        try{
+          await track.applyConstraints({ advanced:[{ zoom: Number(z.value) }] });
+        }catch(e){}
+      };
+    } else {
+      $("zoomSide").classList.add("hidden");
+    }
+
+    setStep("front");
+    setStatus("Caméra OK. Mode: " + (captureMode==="slab"?"GRADED":"RAW") + ". Capture recto.");
+  }
+
+  function stopCamera(){
+    try{ if (stream) stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    stream=null; track=null; caps=null;
+    $("video").srcObject = null;
+    $("zoomSide").classList.add("hidden");
+    setStatus("Caméra coupée.");
+  }
+
+  // Crop = zone du cadre (IMPORTANT)
+  async function captureCroppedBlob(){
+    const video = $("video");
+    const frame = $("frame");
+    const viewer = $("viewer");
+
+    if (!video.videoWidth || !video.videoHeight) return null;
+
+    const vW = video.videoWidth, vH = video.videoHeight;
+    const viewerRect = viewer.getBoundingClientRect();
+    const frameRect  = frame.getBoundingClientRect();
+
+    const containerW = viewerRect.width;
+    const containerH = viewerRect.height;
+
+    // object-fit: cover mapping
+    const scale = Math.max(containerW / vW, containerH / vH);
+    const dispW = vW * scale;
+    const dispH = vH * scale;
+    const offsetX = (containerW - dispW)/2;
+    const offsetY = (containerH - dispH)/2;
+
+    const fx = frameRect.left - viewerRect.left;
+    const fy = frameRect.top  - viewerRect.top;
+    const fW = frameRect.width;
+    const fH = frameRect.height;
+
+    let sx = (fx - offsetX)/scale;
+    let sy = (fy - offsetY)/scale;
+    let sW = fW/scale;
+    let sH = fH/scale;
+
+    // clamp
+    sx = Math.max(0, Math.min(vW-1, sx));
+    sy = Math.max(0, Math.min(vH-1, sy));
+    sW = Math.max(1, Math.min(vW - sx, sW));
+    sH = Math.max(1, Math.min(vH - sy, sH));
+
+    // output size
+    const outMax = 1400;
+    const ratio = sW/sH;
+    let outW, outH;
+    if (ratio >= 1){ outW=outMax; outH=Math.round(outMax/ratio); }
+    else { outH=outMax; outW=Math.round(outMax*ratio); }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = outW; canvas.height = outH;
+    const ctx = canvas.getContext("2d",{alpha:false});
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(video, sx, sy, sW, sH, 0, 0, outW, outH);
+
+    return new Promise(resolve => canvas.toBlob(b=>resolve(b),"image/jpeg",0.9));
+  }
+
+  function openReview(){
+    $("review").classList.add("open");
+    $("frontPreview").src = frontBlob ? URL.createObjectURL(frontBlob) : "";
+    $("backPreview").src  = backBlob  ? URL.createObjectURL(backBlob)  : "";
+  }
+
+  function closeReview(){
+    $("review").classList.remove("open");
+  }
+
+  async function onCapture(){
+    if (!stream){ // auto-start if not started
+      await startCamera();
+      return;
+    }
+
+    const blob = await captureCroppedBlob();
+    if (!blob) return;
+
+    if (step === "front"){
+      frontBlob = blob;
+      setStep("back");
+      haptic(18);
+    } else {
+      backBlob = blob;
+      haptic(22);
+      // after both -> review
+      openReview();
+      setStatus("Vérifie les 2 photos puis envoie.");
+    }
+  }
+
+  async function send(){
+    if (!frontBlob || !backBlob) return;
+
+    try{
+      setStatus("Envoi en cours…");
+      const form = new FormData();
+      form.append("front", frontBlob, "front.jpg");
+      form.append("back", backBlob, "back.jpg");
+      form.append("capture_mode", captureMode); // card | slab
+
+      const res = await fetch(WEBHOOK_URL, { method:"POST", body: form });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+
+      closeReview();
+      setStatus("Envoyé ✅ (tu peux scanner une autre carte)");
+      // reset flow
+      frontBlob=null; backBlob=null;
+      setStep("front");
+      haptic(25);
+
+    }catch(e){
+      setStatus("Erreur d’envoi (URL/CORS).");
+      haptic(40);
+    }
+  }
+
+  // Events
+  $("shutter").addEventListener("click", onCapture);
+
+  $("modePill").addEventListener("click", () => {
+    // toggle raw/graded
+    setCaptureMode(captureMode === "slab" ? "card" : "slab");
+    haptic(10);
+  });
+
+  $("retakeFront").addEventListener("click", () => {
+    closeReview();
+    setStep("front");
+    setStatus("Reprise recto : cadre le recto puis capture.");
+  });
+
+  $("retakeBack").addEventListener("click", () => {
+    closeReview();
+    setStep("back");
+    setStatus("Reprise verso : cadre le verso puis capture.");
+  });
+
+  $("closeReview").addEventListener("click", () => {
+    closeReview();
+    setStatus("Review annulée. Tu peux reprendre une capture.");
+  });
+
+  $("send").addEventListener("click", send);
+
+  // Init
+  setCaptureMode("card");
+  setStep("front");
+  setStatus("Appuie sur le bouton capture pour démarrer (ou autorise la caméra).");
 </script>
 </body>
 </html>
