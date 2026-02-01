@@ -317,7 +317,6 @@
       <div class="topGuide"></div>
     </div>
 
-    <!-- Discreet UI -->
     <div class="hudPill hidden" id="zoomHud">1.0×</div>
     <div class="torchPill hidden" id="torchPill" role="button" aria-label="Torche">⚡</div>
     <div class="closePill" id="closePill" role="button" aria-label="Fermer">✕</div>
@@ -330,7 +329,6 @@
   </div>
 </div>
 
-<!-- Review panel -->
 <div class="review" id="review" aria-hidden="true">
   <h3>Vérification avant envoi</h3>
 
@@ -351,7 +349,7 @@
   </div>
 
   <div class="actions">
-    <button id="send" class="primary">Envoyer</button>
+    <button id="send" class="primary" disabled>Envoyer</button>
     <button id="closeReview" class="danger">Annuler</button>
   </div>
 </div>
@@ -364,6 +362,9 @@
 
   let step="front";          // front | back
   let captureMode="card";    // card | slab
+
+  // Sending lock (anti double-clic)
+  let isSending = false;
 
   // Zoom pinch (no slider)
   let zoomMin = 1, zoomMax = 1, zoomStep = 0.1;
@@ -422,11 +423,7 @@
     if (stream) return;
 
     stream = await navigator.mediaDevices.getUserMedia({
-      video:{
-        facingMode:{ideal:"environment"},
-        width:{ideal:1920},
-        height:{ideal:1080}
-      },
+      video:{ facingMode:{ideal:"environment"} },
       audio:false
     });
 
@@ -465,7 +462,6 @@
   }
 
   async function stopCamera(){
-    // turn off torch if on
     try{
       if (track && caps && typeof caps.torch !== "undefined" && torchOn){
         await track.applyConstraints({ advanced:[{ torch:false }] });
@@ -485,7 +481,6 @@
     setStatus("Caméra coupée.");
   }
 
-  // Crop = zone du cadre
   async function captureCroppedBlob(){
     const video = $("video");
     const frame = $("frame");
@@ -499,7 +494,6 @@
     const containerW = viewerRect.width;
     const containerH = viewerRect.height;
 
-    // object-fit: cover mapping
     const scale = Math.max(containerW / vW, containerH / vH);
     const dispW = vW * scale;
     const dispH = vH * scale;
@@ -516,13 +510,11 @@
     let sW = fW/scale;
     let sH = fH/scale;
 
-    // clamp
     sx = Math.max(0, Math.min(vW-1, sx));
     sy = Math.max(0, Math.min(vH-1, sy));
     sW = Math.max(1, Math.min(vW - sx, sW));
     sH = Math.max(1, Math.min(vH - sy, sH));
 
-    // output size
     const outMax = 1400;
     const ratio = sW/sH;
     let outW, outH;
@@ -542,8 +534,11 @@
   function openReview(){
     $("review").classList.add("open");
     $("review").setAttribute("aria-hidden","false");
+
     $("frontPreview").src = frontBlob ? URL.createObjectURL(frontBlob) : "";
     $("backPreview").src  = backBlob  ? URL.createObjectURL(backBlob)  : "";
+
+    $("send").disabled = !(frontBlob && backBlob) || isSending;
   }
 
   function closeReview(){
@@ -575,32 +570,64 @@
 
   async function send(){
     if (!frontBlob || !backBlob) return;
+    if (isSending) return;
+
+    isSending = true;
+
+    const btn = $("send");
+    const oldText = btn.textContent;
+
+    btn.disabled = true;
+    btn.textContent = "Envoi…";
+    $("closeReview").disabled = true;
+    $("retakeFront").disabled = true;
+    $("retakeBack").disabled = true;
+
+    setStatus("Envoi en cours…");
 
     try{
-      setStatus("Envoi en cours…");
       const form = new FormData();
       form.append("front", frontBlob, "front.jpg");
       form.append("back", backBlob, "back.jpg");
-      form.append("capture_mode", captureMode); // card | slab
+      form.append("capture_mode", captureMode);
+
+      // Option: identifiant unique (utile côté n8n si tu veux dédupliquer)
+      // const scan_id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random());
+      // form.append("scan_id", scan_id);
 
       const res = await fetch(WEBHOOK_URL, { method:"POST", body: form });
       if (!res.ok) throw new Error("HTTP " + res.status);
 
       closeReview();
-      setStatus("Envoyé ✅ (tu peux scanner une autre carte)");
-      frontBlob=null; backBlob=null;
+      setStatus("Envoyé ✅");
+      frontBlob = null;
+      backBlob = null;
       setStep("front");
       haptic(25);
 
+      // Reset UI boutons
+      btn.textContent = oldText;
+      $("closeReview").disabled = false;
+      $("retakeFront").disabled = false;
+      $("retakeBack").disabled = false;
+
+      isSending = false;
+
     }catch(e){
-      setStatus("Erreur d’envoi (URL/CORS).");
+      setStatus("Erreur d’envoi (réessaie).");
+
+      btn.disabled = false;
+      btn.textContent = oldText;
+      $("closeReview").disabled = false;
+      $("retakeFront").disabled = false;
+      $("retakeBack").disabled = false;
+
+      isSending = false;
       haptic(40);
     }
   }
 
-  // ===== Pinch-to-zoom =====
   const viewerEl = $("viewer");
-
   viewerEl.addEventListener("touchstart", (e) => {
     if (e.touches.length === 2){
       pinchStartDist = distance(e.touches[0], e.touches[1]);
@@ -621,7 +648,6 @@
     if (e.touches.length < 2) pinchStartDist = null;
   }, { passive:true });
 
-  // Double-tap = reset zoom
   let lastTap = 0;
   viewerEl.addEventListener("touchend", () => {
     const now = Date.now();
@@ -631,7 +657,6 @@
     lastTap = now;
   }, { passive:true });
 
-  // ===== Events =====
   $("shutter").addEventListener("click", onCapture);
 
   $("modePill").addEventListener("click", () => {
@@ -655,14 +680,21 @@
     }
   });
 
-  // ✕ close: stop camera + reset flow + close review
   $("closePill").addEventListener("click", async () => {
     closeReview();
     frontBlob = null;
     backBlob = null;
-    setCaptureMode(captureMode); // keep mode, just reset UI
     setStep("front");
     await stopCamera();
+
+    // Reset send UI
+    isSending = false;
+    $("send").textContent = "Envoyer";
+    $("send").disabled = true;
+    $("closeReview").disabled = false;
+    $("retakeFront").disabled = false;
+    $("retakeBack").disabled = false;
+
     setStatus("Caméra coupée. Appuie sur capture pour relancer.");
     haptic(12);
   });
