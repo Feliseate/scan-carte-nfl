@@ -201,6 +201,7 @@
       backdrop-filter: blur(8px);
       max-width: 74vw;
       user-select:none;
+      white-space: pre-line;
     }
 
     .shutter{
@@ -375,6 +376,10 @@
     $("status").textContent = msg;
   }
 
+  function appendStatus(msg){
+    $("status").textContent = $("status").textContent + "\n" + msg;
+  }
+
   function setStep(s){
     step = s;
     $("stepTitle").textContent = (step === "front") ? "FRONT OF CARD" : "BACK OF CARD";
@@ -418,10 +423,16 @@
   async function startCamera(){
     if (stream) return;
 
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" } },
-      audio: false
-    });
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false
+      });
+    } catch (e) {
+      setStatus("Erreur caméra : " + (e.message || e));
+      alert("Erreur caméra : " + (e.message || e));
+      return;
+    }
 
     $("video").srcObject = stream;
     track = stream.getVideoTracks()[0];
@@ -563,7 +574,11 @@
     }
 
     const blob = await captureCroppedBlob();
-    if (!blob) return;
+    if (!blob) {
+      setStatus("Capture impossible.");
+      alert("Capture impossible.");
+      return;
+    }
 
     if (step === "front"){
       frontBlob = blob;
@@ -578,8 +593,17 @@
   }
 
   async function send(){
-    if (!frontBlob || !backBlob) return;
-    if (isSending) return;
+    if (!frontBlob || !backBlob) {
+      setStatus("Erreur : il manque le recto ou le verso.");
+      alert("Erreur : il manque le recto ou le verso.");
+      return;
+    }
+
+    if (isSending) {
+      setStatus("Envoi déjà en cours.");
+      alert("Envoi déjà en cours.");
+      return;
+    }
 
     isSending = true;
 
@@ -592,7 +616,8 @@
     $("retakeFront").disabled = true;
     $("retakeBack").disabled = true;
 
-    setStatus("Envoi en cours…");
+    setStatus("Début envoi…");
+    appendStatus("URL : " + WEBHOOK_URL);
 
     try {
       const form = new FormData();
@@ -600,17 +625,26 @@
       form.append("back", backBlob, "back.jpg");
       form.append("capture_mode", captureMode);
 
+      appendStatus("FormData OK");
+      appendStatus("Envoi fetch…");
+
       const res = await fetch(WEBHOOK_URL, {
         method: "POST",
         body: form
       });
 
+      appendStatus("Réponse HTTP reçue : " + res.status);
+
+      const text = await res.text();
+      console.log("Réponse webhook =", text);
+      appendStatus("Lecture réponse OK");
+
       if (!res.ok) {
-        throw new Error("HTTP " + res.status);
+        throw new Error("HTTP " + res.status + " - " + text);
       }
 
       closeReview();
-      setStatus("Envoyé ✅");
+      setStatus("Envoyé ✅\nStatus HTTP : " + res.status);
       frontBlob = null;
       backBlob = null;
       setStep("front");
@@ -618,7 +652,9 @@
 
     } catch(e) {
       console.error("Erreur envoi =", e);
-      setStatus("Erreur d’envoi : " + e.message);
+      const msg = e && e.message ? e.message : String(e);
+      setStatus("Erreur d’envoi : " + msg);
+      alert("Erreur d’envoi : " + msg);
       btn.disabled = false;
     } finally {
       btn.textContent = oldText;
