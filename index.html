@@ -418,15 +418,10 @@
   async function startCamera(){
     if (stream) return;
 
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false
-      });
-    } catch (e) {
-      setStatus("Impossible d’ouvrir la caméra. Vérifie les autorisations.");
-      return;
-    }
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false
+    });
 
     $("video").srcObject = stream;
     track = stream.getVideoTracks()[0];
@@ -449,4 +444,287 @@
     }
 
     if (caps && typeof caps.torch !== "undefined"){
-      $("torchPill").class
+      $("torchPill").classList.remove("hidden");
+      $("torchPill").classList.remove("on");
+      torchOn = false;
+    } else {
+      $("torchPill").classList.add("hidden");
+    }
+
+    setStep("front");
+    setStatus("Caméra OK. Mode: " + (captureMode === "slab" ? "GRADED" : "RAW") + ". Capture recto.");
+  }
+
+  async function stopCamera(){
+    try {
+      if (track && caps && typeof caps.torch !== "undefined" && torchOn){
+        await track.applyConstraints({ advanced: [{ torch: false }] });
+      }
+    } catch(e) {}
+
+    torchOn = false;
+
+    try {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+    } catch(e) {}
+
+    stream = null;
+    track = null;
+    caps = null;
+    $("video").srcObject = null;
+
+    $("torchPill").classList.remove("on");
+    $("torchPill").classList.add("hidden");
+    $("zoomHud").classList.add("hidden");
+
+    setStatus("Caméra coupée.");
+  }
+
+  async function captureCroppedBlob(){
+    const video = $("video");
+    const frame = $("frame");
+    const viewer = $("viewer");
+
+    if (!video.videoWidth || !video.videoHeight) return null;
+
+    const vW = video.videoWidth;
+    const vH = video.videoHeight;
+    const viewerRect = viewer.getBoundingClientRect();
+    const frameRect = frame.getBoundingClientRect();
+
+    const containerW = viewerRect.width;
+    const containerH = viewerRect.height;
+
+    const scale = Math.max(containerW / vW, containerH / vH);
+    const dispW = vW * scale;
+    const dispH = vH * scale;
+    const offsetX = (containerW - dispW) / 2;
+    const offsetY = (containerH - dispH) / 2;
+
+    const fx = frameRect.left - viewerRect.left;
+    const fy = frameRect.top - viewerRect.top;
+    const fW = frameRect.width;
+    const fH = frameRect.height;
+
+    let sx = (fx - offsetX) / scale;
+    let sy = (fy - offsetY) / scale;
+    let sW = fW / scale;
+    let sH = fH / scale;
+
+    sx = Math.max(0, Math.min(vW - 1, sx));
+    sy = Math.max(0, Math.min(vH - 1, sy));
+    sW = Math.max(1, Math.min(vW - sx, sW));
+    sH = Math.max(1, Math.min(vH - sy, sH));
+
+    const outMax = 1400;
+    const ratio = sW / sH;
+    let outW, outH;
+
+    if (ratio >= 1){
+      outW = outMax;
+      outH = Math.round(outMax / ratio);
+    } else {
+      outH = outMax;
+      outW = Math.round(outMax * ratio);
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = outW;
+    canvas.height = outH;
+
+    const ctx = canvas.getContext("2d", { alpha: false });
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(video, sx, sy, sW, sH, 0, 0, outW, outH);
+
+    return new Promise(resolve => canvas.toBlob(blob => resolve(blob), "image/jpeg", 0.9));
+  }
+
+  function openReview(){
+    $("review").classList.add("open");
+    $("review").setAttribute("aria-hidden", "false");
+
+    $("frontPreview").src = frontBlob ? URL.createObjectURL(frontBlob) : "";
+    $("backPreview").src = backBlob ? URL.createObjectURL(backBlob) : "";
+
+    $("send").disabled = !(frontBlob && backBlob) || isSending;
+  }
+
+  function closeReview(){
+    $("review").classList.remove("open");
+    $("review").setAttribute("aria-hidden", "true");
+  }
+
+  async function onCapture(){
+    if (!stream){
+      await startCamera();
+      haptic(10);
+      return;
+    }
+
+    const blob = await captureCroppedBlob();
+    if (!blob) return;
+
+    if (step === "front"){
+      frontBlob = blob;
+      setStep("back");
+      haptic(18);
+    } else {
+      backBlob = blob;
+      haptic(22);
+      openReview();
+      setStatus("Vérifie les 2 photos puis envoie.");
+    }
+  }
+
+  async function send(){
+    if (!frontBlob || !backBlob) return;
+    if (isSending) return;
+
+    isSending = true;
+
+    const btn = $("send");
+    const oldText = btn.textContent;
+
+    btn.disabled = true;
+    btn.textContent = "Envoi…";
+    $("closeReview").disabled = true;
+    $("retakeFront").disabled = true;
+    $("retakeBack").disabled = true;
+
+    setStatus("Envoi en cours…");
+
+    try {
+      const form = new FormData();
+      form.append("front", frontBlob, "front.jpg");
+      form.append("back", backBlob, "back.jpg");
+      form.append("capture_mode", captureMode);
+
+      const res = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        body: form
+      });
+
+      if (!res.ok) {
+        throw new Error("HTTP " + res.status);
+      }
+
+      closeReview();
+      setStatus("Envoyé ✅");
+      frontBlob = null;
+      backBlob = null;
+      setStep("front");
+      haptic(25);
+
+    } catch(e) {
+      console.error("Erreur envoi =", e);
+      setStatus("Erreur d’envoi : " + e.message);
+      btn.disabled = false;
+    } finally {
+      btn.textContent = oldText;
+      $("closeReview").disabled = false;
+      $("retakeFront").disabled = false;
+      $("retakeBack").disabled = false;
+      isSending = false;
+    }
+  }
+
+  const viewerEl = $("viewer");
+
+  viewerEl.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2){
+      pinchStartDist = distance(e.touches[0], e.touches[1]);
+      pinchStartZoom = currentZoom;
+    }
+  }, { passive: true });
+
+  viewerEl.addEventListener("touchmove", (e) => {
+    if (e.touches.length === 2 && pinchStartDist){
+      e.preventDefault();
+      const d = distance(e.touches[0], e.touches[1]);
+      const ratio = d / pinchStartDist;
+      setZoom(pinchStartZoom * ratio);
+    }
+  }, { passive: false });
+
+  viewerEl.addEventListener("touchend", (e) => {
+    if (e.touches.length < 2) pinchStartDist = null;
+  }, { passive: true });
+
+  let lastTap = 0;
+  viewerEl.addEventListener("touchend", () => {
+    const now = Date.now();
+    if (now - lastTap < 260){
+      setZoom(zoomMin);
+    }
+    lastTap = now;
+  }, { passive: true });
+
+  $("shutter").addEventListener("click", onCapture);
+
+  $("modePill").addEventListener("click", () => {
+    setCaptureMode(captureMode === "slab" ? "card" : "slab");
+    haptic(10);
+  });
+
+  $("torchPill").addEventListener("click", async () => {
+    if (!track || !caps || typeof caps.torch === "undefined") return;
+
+    torchOn = !torchOn;
+    $("torchPill").classList.toggle("on", torchOn);
+
+    try {
+      await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+      haptic(10);
+    } catch(e) {
+      torchOn = false;
+      $("torchPill").classList.remove("on");
+      haptic(25);
+    }
+  });
+
+  $("closePill").addEventListener("click", async () => {
+    closeReview();
+    frontBlob = null;
+    backBlob = null;
+    setStep("front");
+    await stopCamera();
+
+    isSending = false;
+    $("send").textContent = "Envoyer";
+    $("send").disabled = true;
+    $("closeReview").disabled = false;
+    $("retakeFront").disabled = false;
+    $("retakeBack").disabled = false;
+
+    setStatus("Caméra coupée. Appuie sur capture pour relancer.");
+    haptic(12);
+  });
+
+  $("retakeFront").addEventListener("click", () => {
+    closeReview();
+    frontBlob = null;
+    setStep("front");
+    setStatus("Reprise recto : cadre le recto puis capture.");
+  });
+
+  $("retakeBack").addEventListener("click", () => {
+    closeReview();
+    backBlob = null;
+    setStep("back");
+    setStatus("Reprise verso : cadre le verso puis capture.");
+  });
+
+  $("closeReview").addEventListener("click", () => {
+    closeReview();
+    setStatus("Review annulée. Tu peux reprendre une capture.");
+  });
+
+  $("send").addEventListener("click", send);
+
+  setCaptureMode("card");
+  setStep("front");
+  setStatus("Appuie sur le bouton capture pour démarrer (autorise la caméra si demandé).");
+</script>
+</body>
+</html>
