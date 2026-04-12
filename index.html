@@ -577,81 +577,33 @@
     }
   }
 
-  async function send(){
-    if (!frontBlob || !backBlob) {
-      alert("Il manque le recto ou le verso");
-      return;
-    }
+async function send(){
+  alert("TEST JSON");
 
-    if (isSending) {
-      alert("Envoi déjà en cours");
-      return;
-    }
+  try {
+    const res = await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        test: true,
+        source: "mobile"
+      })
+    });
 
-    isSending = true;
+    alert("STATUS " + res.status);
 
-    const btn = $("send");
-    const oldText = btn.textContent;
+    const text = await res.text();
+    console.log("REPONSE =", text);
 
-    btn.disabled = true;
-    btn.textContent = "Envoi…";
-    $("closeReview").disabled = true;
-    $("retakeFront").disabled = true;
-    $("retakeBack").disabled = true;
+    alert("REPONSE OK");
 
-    setStatus("Envoi en cours…");
-    alert("1 - clic bouton OK");
-
-    try {
-      const form = new FormData();
-      form.append("front", frontBlob, "front.jpg");
-      form.append("back", backBlob, "back.jpg");
-      form.append("capture_mode", captureMode);
-
-      alert("2 - avant fetch");
-      console.log("WEBHOOK_URL =", WEBHOOK_URL);
-
-      const res = await fetch(WEBHOOK_URL, {
-        method: "POST",
-        body: form
-      });
-
-      alert("3 - après fetch status = " + res.status);
-      console.log("Status HTTP =", res.status);
-
-      const text = await res.text();
-      console.log("Réponse =", text);
-      alert("4 - réponse reçue");
-
-      if (!res.ok) throw new Error("HTTP " + res.status);
-
-      closeReview();
-      setStatus("Envoyé ✅");
-      frontBlob = null;
-      backBlob = null;
-      setStep("front");
-      haptic(25);
-
-      btn.textContent = oldText;
-      $("closeReview").disabled = false;
-      $("retakeFront").disabled = false;
-      $("retakeBack").disabled = false;
-
-      isSending = false;
-
-    } catch(e) {
-      console.error("Erreur envoi =", e);
-      alert("ERREUR : " + e.message);
-      setStatus("Erreur d’envoi : " + e.message);
-
-      btn.disabled = false;
-      btn.textContent = oldText;
-      $("closeReview").disabled = false;
-      $("retakeFront").disabled = false;
-      $("retakeBack").disabled = false;
-
-      isSending = false;
-      haptic(40);
+  } catch(e){
+    console.error("ERREUR =", e);
+    alert("ERREUR : " + e.message);
+  }
+}
     }
   }
 
