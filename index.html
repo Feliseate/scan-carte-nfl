@@ -35,13 +35,12 @@
     header h2{margin:0;font-size:16px;font-weight:900;letter-spacing:.2px}
     header .sub{font-size:12px;color:var(--muted)}
 
-    /* ===== Viewer ===== */
     .viewer{
       position:relative;
       flex:1 1 auto;
       background:#000;
       overflow:hidden;
-      touch-action: none; /* important pour pinch sans scroll */
+      touch-action: none;
     }
     video{
       position:absolute;
@@ -52,7 +51,6 @@
       transform: translateZ(0);
     }
 
-    /* ===== Frame ===== */
     .frame{
       position:absolute;
       left:50%;
@@ -85,7 +83,6 @@
       border-top: 2px solid rgba(255,255,255,.35);
     }
 
-    /* ===== Overlay step title ===== */
     .stepTitle{
       position:absolute;
       left:50%;
@@ -104,7 +101,6 @@
       user-select:none;
     }
 
-    /* ===== RAW/GRADED pill ===== */
     .modePill{
       position:absolute;
       right: 14px;
@@ -126,7 +122,6 @@
       border-color: rgba(34,197,94,.55);
     }
 
-    /* ===== Discreet zoom HUD + torch + close ===== */
     .hudPill{
       position:absolute;
       right: 12px;
@@ -192,7 +187,6 @@
     }
     .closePill:active{ transform: scale(.98); }
 
-    /* ===== Status bubble ===== */
     #status{
       position:absolute;
       left:12px;
@@ -209,7 +203,6 @@
       user-select:none;
     }
 
-    /* ===== Shutter ===== */
     .shutter{
       position:absolute;
       left:50%;
@@ -226,7 +219,6 @@
     }
     .shutter:active{ transform: translateX(-50%) scale(.98); }
 
-    /* ===== Review panel ===== */
     .review{
       position: fixed;
       left:0; right:0;
@@ -357,49 +349,52 @@
 <script>
   const WEBHOOK_URL = "https://n8n.srv1119117.hstgr.cloud/webhook/scan-carte-nfl";
 
-  let stream=null, track=null, caps=null;
-  let frontBlob=null, backBlob=null;
+  let stream = null, track = null, caps = null;
+  let frontBlob = null, backBlob = null;
 
-  let step="front";          // front | back
-  let captureMode="card";    // card | slab
-
-  // Sending lock (anti double-clic)
+  let step = "front";
+  let captureMode = "card";
   let isSending = false;
 
-  // Zoom pinch (no slider)
   let zoomMin = 1, zoomMax = 1, zoomStep = 0.1;
   let currentZoom = 1;
 
-  // Torch
   let torchOn = false;
-
-  // Pinch state
   let pinchStartDist = null;
   let pinchStartZoom = 1;
 
-  const $ = (id)=>document.getElementById(id);
+  const $ = (id) => document.getElementById(id);
 
-  function haptic(ms=16){ try{ if (navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
+  function haptic(ms = 16){
+    try {
+      if (navigator.vibrate) navigator.vibrate(ms);
+    } catch(e) {}
+  }
 
-  function setStatus(msg){ $("status").textContent = msg; }
+  function setStatus(msg){
+    $("status").textContent = msg;
+  }
 
   function setStep(s){
     step = s;
     $("stepTitle").textContent = (step === "front") ? "FRONT OF CARD" : "BACK OF CARD";
-    setStatus(step === "front"
-      ? "Cadre le RECTO puis appuie sur capture."
-      : "Cadre le VERSO puis appuie sur capture."
+    setStatus(
+      step === "front"
+        ? "Cadre le RECTO puis appuie sur capture."
+        : "Cadre le VERSO puis appuie sur capture."
     );
   }
 
   function setCaptureMode(mode){
-    captureMode = mode; // card | slab
+    captureMode = mode;
     $("frame").className = "frame " + (mode === "slab" ? "mode-slab" : "mode-card");
     $("modePill").textContent = (mode === "slab") ? "GRADED" : "RAW";
     $("modePill").classList.toggle("active", mode === "slab");
   }
 
-  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+  function clamp(v, min, max){
+    return Math.max(min, Math.min(max, v));
+  }
 
   function distance(t1, t2){
     const dx = t1.clientX - t2.clientX;
@@ -414,24 +409,24 @@
     currentZoom = clamp(snapped, zoomMin, zoomMax);
 
     $("zoomHud").textContent = `${currentZoom.toFixed(1)}×`;
-    try{
-      await track.applyConstraints({ advanced:[{ zoom: currentZoom }] });
-    }catch(e){}
+
+    try {
+      await track.applyConstraints({ advanced: [{ zoom: currentZoom }] });
+    } catch(e) {}
   }
 
   async function startCamera(){
     if (stream) return;
 
     stream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode:{ideal:"environment"} },
-      audio:false
+      video: { facingMode: { ideal: "environment" } },
+      audio: false
     });
 
     $("video").srcObject = stream;
     track = stream.getVideoTracks()[0];
     caps = track.getCapabilities ? track.getCapabilities() : null;
 
-    // Zoom HUD
     if (caps && typeof caps.zoom !== "undefined"){
       zoomMin = caps.zoom.min ?? 1;
       zoomMax = caps.zoom.max ?? 1;
@@ -441,14 +436,13 @@
       $("zoomHud").classList.remove("hidden");
       $("zoomHud").textContent = `${currentZoom.toFixed(1)}×`;
 
-      try{
-        await track.applyConstraints({ advanced:[{ zoom: currentZoom }] });
-      }catch(e){}
+      try {
+        await track.applyConstraints({ advanced: [{ zoom: currentZoom }] });
+      } catch(e) {}
     } else {
       $("zoomHud").classList.add("hidden");
     }
 
-    // Torch
     if (caps && typeof caps.torch !== "undefined"){
       $("torchPill").classList.remove("hidden");
       $("torchPill").classList.remove("on");
@@ -458,20 +452,25 @@
     }
 
     setStep("front");
-    setStatus("Caméra OK. Mode: " + (captureMode==="slab"?"GRADED":"RAW") + ". Capture recto.");
+    setStatus("Caméra OK. Mode: " + (captureMode === "slab" ? "GRADED" : "RAW") + ". Capture recto.");
   }
 
   async function stopCamera(){
-    try{
+    try {
       if (track && caps && typeof caps.torch !== "undefined" && torchOn){
-        await track.applyConstraints({ advanced:[{ torch:false }] });
+        await track.applyConstraints({ advanced: [{ torch: false }] });
       }
-    }catch(e){}
+    } catch(e) {}
 
     torchOn = false;
 
-    try{ if (stream) stream.getTracks().forEach(t=>t.stop()); }catch(e){}
-    stream=null; track=null; caps=null;
+    try {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+    } catch(e) {}
+
+    stream = null;
+    track = null;
+    caps = null;
     $("video").srcObject = null;
 
     $("torchPill").classList.remove("on");
@@ -485,11 +484,13 @@
     const video = $("video");
     const frame = $("frame");
     const viewer = $("viewer");
+
     if (!video.videoWidth || !video.videoHeight) return null;
 
-    const vW = video.videoWidth, vH = video.videoHeight;
+    const vW = video.videoWidth;
+    const vH = video.videoHeight;
     const viewerRect = viewer.getBoundingClientRect();
-    const frameRect  = frame.getBoundingClientRect();
+    const frameRect = frame.getBoundingClientRect();
 
     const containerW = viewerRect.width;
     const containerH = viewerRect.height;
@@ -497,53 +498,61 @@
     const scale = Math.max(containerW / vW, containerH / vH);
     const dispW = vW * scale;
     const dispH = vH * scale;
-    const offsetX = (containerW - dispW)/2;
-    const offsetY = (containerH - dispH)/2;
+    const offsetX = (containerW - dispW) / 2;
+    const offsetY = (containerH - dispH) / 2;
 
     const fx = frameRect.left - viewerRect.left;
-    const fy = frameRect.top  - viewerRect.top;
+    const fy = frameRect.top - viewerRect.top;
     const fW = frameRect.width;
     const fH = frameRect.height;
 
-    let sx = (fx - offsetX)/scale;
-    let sy = (fy - offsetY)/scale;
-    let sW = fW/scale;
-    let sH = fH/scale;
+    let sx = (fx - offsetX) / scale;
+    let sy = (fy - offsetY) / scale;
+    let sW = fW / scale;
+    let sH = fH / scale;
 
-    sx = Math.max(0, Math.min(vW-1, sx));
-    sy = Math.max(0, Math.min(vH-1, sy));
+    sx = Math.max(0, Math.min(vW - 1, sx));
+    sy = Math.max(0, Math.min(vH - 1, sy));
     sW = Math.max(1, Math.min(vW - sx, sW));
     sH = Math.max(1, Math.min(vH - sy, sH));
 
     const outMax = 1400;
-    const ratio = sW/sH;
+    const ratio = sW / sH;
     let outW, outH;
-    if (ratio >= 1){ outW=outMax; outH=Math.round(outMax/ratio); }
-    else { outH=outMax; outW=Math.round(outMax*ratio); }
+
+    if (ratio >= 1){
+      outW = outMax;
+      outH = Math.round(outMax / ratio);
+    } else {
+      outH = outMax;
+      outW = Math.round(outMax * ratio);
+    }
 
     const canvas = document.createElement("canvas");
-    canvas.width = outW; canvas.height = outH;
-    const ctx = canvas.getContext("2d",{alpha:false});
+    canvas.width = outW;
+    canvas.height = outH;
+
+    const ctx = canvas.getContext("2d", { alpha: false });
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(video, sx, sy, sW, sH, 0, 0, outW, outH);
 
-    return new Promise(resolve => canvas.toBlob(b=>resolve(b),"image/jpeg",0.9));
+    return new Promise(resolve => canvas.toBlob(blob => resolve(blob), "image/jpeg", 0.9));
   }
 
   function openReview(){
     $("review").classList.add("open");
-    $("review").setAttribute("aria-hidden","false");
+    $("review").setAttribute("aria-hidden", "false");
 
     $("frontPreview").src = frontBlob ? URL.createObjectURL(frontBlob) : "";
-    $("backPreview").src  = backBlob  ? URL.createObjectURL(backBlob)  : "";
+    $("backPreview").src = backBlob ? URL.createObjectURL(backBlob) : "";
 
     $("send").disabled = !(frontBlob && backBlob) || isSending;
   }
 
   function closeReview(){
     $("review").classList.remove("open");
-    $("review").setAttribute("aria-hidden","true");
+    $("review").setAttribute("aria-hidden", "true");
   }
 
   async function onCapture(){
@@ -569,8 +578,15 @@
   }
 
   async function send(){
-    if (!frontBlob || !backBlob) return;
-    if (isSending) return;
+    if (!frontBlob || !backBlob) {
+      alert("Il manque le recto ou le verso");
+      return;
+    }
+
+    if (isSending) {
+      alert("Envoi déjà en cours");
+      return;
+    }
 
     isSending = true;
 
@@ -584,18 +600,29 @@
     $("retakeBack").disabled = true;
 
     setStatus("Envoi en cours…");
+    alert("1 - clic bouton OK");
 
-    try{
+    try {
       const form = new FormData();
       form.append("front", frontBlob, "front.jpg");
       form.append("back", backBlob, "back.jpg");
       form.append("capture_mode", captureMode);
 
-      // Option: identifiant unique (utile côté n8n si tu veux dédupliquer)
-      // const scan_id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random());
-      // form.append("scan_id", scan_id);
+      alert("2 - avant fetch");
+      console.log("WEBHOOK_URL =", WEBHOOK_URL);
 
-      const res = await fetch(WEBHOOK_URL, { method:"POST", body: form });
+      const res = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        body: form
+      });
+
+      alert("3 - après fetch status = " + res.status);
+      console.log("Status HTTP =", res.status);
+
+      const text = await res.text();
+      console.log("Réponse =", text);
+      alert("4 - réponse reçue");
+
       if (!res.ok) throw new Error("HTTP " + res.status);
 
       closeReview();
@@ -605,7 +632,6 @@
       setStep("front");
       haptic(25);
 
-      // Reset UI boutons
       btn.textContent = oldText;
       $("closeReview").disabled = false;
       $("retakeFront").disabled = false;
@@ -613,8 +639,10 @@
 
       isSending = false;
 
-    }catch(e){
-      setStatus("Erreur d’envoi (réessaie).");
+    } catch(e) {
+      console.error("Erreur envoi =", e);
+      alert("ERREUR : " + e.message);
+      setStatus("Erreur d’envoi : " + e.message);
 
       btn.disabled = false;
       btn.textContent = oldText;
@@ -628,12 +656,13 @@
   }
 
   const viewerEl = $("viewer");
+
   viewerEl.addEventListener("touchstart", (e) => {
     if (e.touches.length === 2){
       pinchStartDist = distance(e.touches[0], e.touches[1]);
       pinchStartZoom = currentZoom;
     }
-  }, { passive:true });
+  }, { passive: true });
 
   viewerEl.addEventListener("touchmove", (e) => {
     if (e.touches.length === 2 && pinchStartDist){
@@ -642,11 +671,11 @@
       const ratio = d / pinchStartDist;
       setZoom(pinchStartZoom * ratio);
     }
-  }, { passive:false });
+  }, { passive: false });
 
   viewerEl.addEventListener("touchend", (e) => {
     if (e.touches.length < 2) pinchStartDist = null;
-  }, { passive:true });
+  }, { passive: true });
 
   let lastTap = 0;
   viewerEl.addEventListener("touchend", () => {
@@ -655,7 +684,7 @@
       setZoom(zoomMin);
     }
     lastTap = now;
-  }, { passive:true });
+  }, { passive: true });
 
   $("shutter").addEventListener("click", onCapture);
 
@@ -670,10 +699,10 @@
     torchOn = !torchOn;
     $("torchPill").classList.toggle("on", torchOn);
 
-    try{
-      await track.applyConstraints({ advanced:[{ torch: torchOn }] });
+    try {
+      await track.applyConstraints({ advanced: [{ torch: torchOn }] });
       haptic(10);
-    }catch(e){
+    } catch(e) {
       torchOn = false;
       $("torchPill").classList.remove("on");
       haptic(25);
@@ -687,7 +716,6 @@
     setStep("front");
     await stopCamera();
 
-    // Reset send UI
     isSending = false;
     $("send").textContent = "Envoyer";
     $("send").disabled = true;
@@ -718,10 +746,10 @@
 
   $("send").addEventListener("click", send);
 
-  // Init
   setCaptureMode("card");
   setStep("front");
   setStatus("Appuie sur le bouton capture pour démarrer (autorise la caméra si demandé).");
+  alert("Version debug chargée");
 </script>
 </body>
 </html>
